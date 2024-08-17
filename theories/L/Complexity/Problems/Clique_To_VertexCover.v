@@ -301,8 +301,8 @@ Proof.
     
 Qed.
 
-Lemma vertex_cover_is_subset_of_vertex_set (g0 : UGraph) (k : nat) (S : list (V g0)) :
-  isKVertexCover k S -> forall x, In x S -> In x (elem (V g0)).
+Lemma vertex_cover_is_subset_of_vertex_set (g0 : UGraph) (k : nat) (S0 : list (V g0)) :
+  isKVertexCover k S0 -> forall x, In x S0 -> In x (elem (V g0)).
 Proof.
   intros Hvertex_cover x Hx.
   (* Since S is a list of vertices forming a vertex cover in g0, x must be in the vertex set V g0 *)
@@ -324,7 +324,7 @@ destruct Hvertex_cover as [Hlen [Hvc Hdup]].
 assert (Hsubset: forall x, In x S -> In x (elem (V g0))).
 {
   intros x HxS.
-  apply vertex_cover_is_subset_of_vertex_set with (k := length S); assumption.
+  apply vertex_cover_is_subset_of_vertex_set with (k := length S) (S0 := S).
 }
 
 (* Now prove that count_in_list matches the length of S *)
@@ -338,12 +338,39 @@ induction S as [| x xs IH].
   {
     apply dupfree_cons_inv in Hdup. destruct Hdup as [Hdup' Hnotin]. assumption.
   }
-  specialize (IH Hlen Hvc Hdup).
-
-  (* Now the goal is: count_in_list (elem (V g0)) (x :: xs) = S (length xs) *)
-  rewrite <- IH.
-  apply count_in_list_cons_increase with (l2 := elem (V g0)); auto.
-Qed.
+  assert (Hlen_xs: |xs| = |xs|) by reflexivity.
+  assert (Hxs_cover: isKVertexCover (length xs) xs).
+    {
+      split.
+      - lia. (* We know that length xs = length S - 1 *)
+      - split.
+        + (* Vertex cover property holds for xs *)
+          intros v1 v2 HE.
+          specialize (Hvc v1 v2 HE).
+          destruct Hvc as [Hvc1 | Hvc2].
+          * (* Case when v1 = x *)
+            destruct (eqType_dec v1 x) as [Heq1 | Hneq1].
+            -- subst v1. right. admit.
+            -- destruct (eqType_dec v2 x) as [Heq2 | Hneq2].
+               ++ subst v2. right. admit.
+               ++ (* Both v1 and v2 are in xs *)
+                  left. admit.
+          * (* Case when v2 = x *)
+            destruct (eqType_dec v2 x) as [Heq2 | Hneq2].
+            -- subst v2. left. admit.
+            -- destruct (eqType_dec v1 x) as [Heq1 | Hneq1].
+               ++ subst v1. left. admit.
+               ++ (* Both v1 and v2 are in xs *)
+                  right. admit.
+        + (* xs is dupfree *)
+          apply dupfree_cons_inv in Hdup.
+          destruct Hdup as [Hdupf Hx_not_xs].
+          exact Hdupf.
+    }
+    destruct Hxs_cover as [H1 H2].
+    specialize (IH Hlen_xs).
+    admit.
+Admitted.
 
 
 Section dd.
@@ -400,34 +427,38 @@ Proof.
     exists (list_diff (elem (V g0)) S).
     unfold isKClique. split.
     + (* Show that the size of the resulting set is k *)
-    unfold isKVertexCover in Hcover. destruct Hcover as [Hsize Hvc].
     rewrite list_diff_length.  
     assert (Hdiff_size: length ( elem (V g0) ) - length (S) = k).
     {
       simpl.
     }  
-    assert (Hcount: |S| = count_in_list (elem (V g0)) S ).
-   { 
-    induction S as [| x xs IH].
-    - (* Base case: S is empty *)
-      simpl. rewrite count_in_list_empty_r. reflexivity.
-    - (* Inductive step: S is non-empty *)
-      simpl.
-      destruct (in_list_spec x (elem (V g0))) as [Hin | Hnin].
-      + (* Case: x is in the vertex set of g0 *)
-        simpl. f_equal. apply IH.
-      + (* Case: x is not in the vertex set of g0, which is a contradiction *)
-        exfalso. unfold isVertexCover in Hcover. destruct Hcover as [_ Hvc].
-        specialize (Hvc x x).
-        assert (Hx_in_S : x el S).
-        {
-          left. reflexivity.
-        }
-        apply Hvc in Hx_in_S.
-        destruct Hx_in_S as [Hx_in_S1 | Hx_in_S2]; contradiction.
-   }
-    rewrite Hcount in Hdiff_size.
-    exact Hdiff_size.
+    assert (Hsimpl: (| elem (V g0) |) - ((| elem (V g0) |) - (length S)) = (length S)).
+      {
+        replace (| elem (V g0) | - (| elem (V g0) | - (length S))) with (length S).
+  reflexivity.
+      }
+    assert (Hcover_modified: isKVertexCover (| S |) S).
+    {
+      rewrite <- Hdiff_size in Hcover.
+
+      
+      rewrite Hsimpl in Hcover.
+      exact Hcover.
+    }
+
+    assert (Hcount: count_in_list (elem (V g0)) S = |S|).
+    { 
+    apply count_in_list_equals_length_if_vertex_cover with (g0 := complementGraph g0).
+
+    (* Satisfy the hypothesis by providing Hcover *)
+    exact Hcover_modified.
+    }
+     assert (Hequal: (| elem (V g0) |) - count_in_list (elem (V g0)) S = k ).
+     {
+        rewrite Hcount.
+        exact Hdiff_size.
+     }
+     exact Hequal.
 
     + split.
       * intros v1 v2 H1 H2 Hneq.
