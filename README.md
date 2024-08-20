@@ -10,7 +10,7 @@ The proof and its formalization are based on concepts and methodologies develope
 This project is based on the [library of undecidable problems](https://github.com/uds-psl/coq-library-undecidability). The main files contributed as part of this proof are:
 
 ```
-L/Complexity/VertexCover.v 
+L/Complexity/Problems/VertexCover.v 
 L/Complexity/Reductions/Clique_to_VertexCover.v
 ```
 
