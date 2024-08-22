@@ -14,6 +14,10 @@ L/Complexity/Problems/VertexCover.v
 L/Complexity/Reductions/Clique_to_VertexCover.v
 ```
 
+## Formalization Report
+
+You can find the report [here](https://github.com/violeta-kastreva/vertex-cover-np-c-formal-proof/blob/master/Formalization%20of%20Clique%20to%20Vertex%20Cover%20Reduction%20in%20Coq..pdf).
+
 
 ## How to build
 
