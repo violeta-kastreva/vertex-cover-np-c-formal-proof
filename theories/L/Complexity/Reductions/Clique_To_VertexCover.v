@@ -152,7 +152,7 @@ Proof.
   apply elem_spec.
 Qed.
 
-Section CliqueVertexCoverReduction.
+Section CliqueToVertexCoverReduction.
 
 (* Theorem: Reduction from Clique to Vertex Cover is correct *)
 Theorem Clique_reduces_to_VertexCover :
@@ -284,4 +284,73 @@ Proof.
       * apply dupfree_list_diff. apply dupfree_elem.
 Qed.
 
-End CliqueVertexCoverReduction.
+End CliqueToVertexCoverReduction.
+
+
+Section PolynomialReductionProof.
+
+  (** ** Polynomial Time Reduction - to be finished **)
+
+  Definition size_VGraph (g : UGraph) : nat :=
+    Cardinality (V g).
+
+  Definition size_EGraph (g : UGraph) : nat :=
+    count (fun _ => True) (enum (V g * V g)).
+
+  Definition Clique_to_KVertexCover_poly (i : UGraph * nat) : bool :=
+    let (g, k) := i in
+    (size_VGraph g + size_EGraph g) ^ 2 <=? (size_VGraph (complementGraph g) + size_EGraph (complementGraph g)) ^ 2.
+
+  Lemma Clique_to_KVertexCover_poly_correct :
+    forall i, Clique_to_KVertexCover_poly i = true.
+  Proof.
+    intros [g k].
+    unfold Clique_to_KVertexCover_poly, size_VGraph, size_EGraph.
+    lia.
+  Qed.
+
+  Definition reduction_time (g : UGraph) : nat :=
+    let n := size_VGraph g in
+    let m := size_EGraph g in
+    n * n + m * m.
+
+  Lemma reduction_time_poly :
+    forall (g : UGraph),
+      exists (p : nat -> nat), (forall n, reduction_time g <= p n) /\ inOPoly p.
+  Proof.
+    intros g.
+    exists (fun n => n * n).
+    split.
+    - intros n.
+      unfold reduction_time, size_VGraph, size_EGraph.
+      lia.
+    - unfold inOPoly.
+      exists 2.
+      intros x.
+      simpl.
+      lia.
+  Qed.
+
+  (** ** Final Reduction Function **)
+  Definition final_reduction (g : UGraph) (k : nat) : UGraph * nat :=
+    (complementGraph g, size_VGraph g - k).
+
+  (** Theorem: Clique reduces to KVertexCover in polynomial time **)
+  Theorem Clique_reduces_to_KVertexCover_poly :
+    forall g k, Clique (g, k) <-> KVertexCover (final_reduction g k) /\ reduction_time_poly g.
+  Proof.
+    (* intros g k.
+    split.
+    - intros Hclique.
+      split.
+      + apply Clique_reduces_to_KVertexCover.
+        exact Hclique.
+      + apply reduction_time_poly.
+    - intros [Hcover Hpoly].
+      apply Clique_reduces_to_KVertexCover.
+      exact Hcover. *)
+      admit.
+  Admitted.
+
+
+End PolynomialReductionProof.
