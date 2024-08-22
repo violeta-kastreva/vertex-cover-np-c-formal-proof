@@ -1,98 +1,22 @@
-Add LoadPath "/mnt/d/hamiltonian-cycle-formal-proof-np-c/ba-gaeher/external/uds-psl-base" as PslBase.
 From PslBase Require Import FinTypes.
+From Undecidability.L.Complexity.Problems Require Import Clique UGraph VertexCover.
+From Undecidability.L.Complexity Require Import PrelimVCover.
 
 Require Import Coq.Logic.Classical_Prop.
-
 Require Import Lia.
-
 Require Import List.
 Import ListNotations.
 Require Import Coq.Arith.PeanoNat.
 Require Import Coq.Bool.Bool.
 
-  (* Section: Graph def *)
-
-Record UGraph := 
-  { 
-    V : finType;
-    E : V * V -> Prop; 
-    E_dec : forall v1 v2, {E (v1, v2)} + {~ E (v1, v2)};
-    E_symm: forall v1 v2, E (v1, v2) <-> E (v2, v1)
-  }.
-  (* Section: Clique Def *)
-
-Section fixGraph.
-  Variable (g : UGraph).
-  Notation V := (V g).
-  Notation E := (@E g).
-
-  Definition isClique (l : list V) := (forall v1 v2, v1 el l -> v2 el l -> v1 <> v2 -> E (v1, v2)) /\ dupfree l.
-  Definition isKClique k (l : list V) := |l| = k /\ isClique l.
-
-  (** An alternative inductive characterization *)
-  Inductive indKClique : nat -> list V -> Prop :=
-    | indKCliqueNil : indKClique 0 []
-    | indKCliqueS L v k : indKClique k L -> not (v el L) -> (forall v', v' el L -> E (v, v')) -> indKClique (S k) (v :: L).
-  Hint Constructors indKClique.
-
-  Lemma indKClique_iff k L: isKClique k L <-> indKClique k L.
-  Proof.
-    split.
-    - intros [H1 [H2 H3]]. revert L H1 H2 H3. induction k; intros.
-      + destruct L; cbn in H1; [ eauto | congruence].
-      + destruct L; cbn in *; [congruence | ].
-        constructor.
-        * apply IHk; [lia | intros; apply H2; eauto | now inv H3].
-        * now inv H3.
-        * intros v' Hel. apply H2; [eauto | eauto | ]. inv H3. intros ->. congruence.
-    - induction 1 as [ | ? ? ? ? IH].
-      + split; [ | split]; [now cbn | intros ? ? [] | constructor].
-      + destruct IH as (IH1 & IH2 & IH3). split; [ | split].
-        * cbn. lia.
-        * intros v1 v2 [-> | H2] [-> | H3] H4; try congruence.
-          -- now apply H1.
-          -- apply E_symm. now apply H1.
-          -- now apply IH2.
-        * now constructor.
-  Qed.
-End fixGraph.
-
-Definition Clique (i : UGraph * nat) := let (g, k) := i in exists l, @isKClique g k l.
-
-  (* Section: VertexCover def *)
-
-
-Section ss.
-  Variable g : UGraph.
-  Notation V := (V g).
-  Notation E := (@E g).
-
-  (** ** Definition of Vertex Cover *)
-
-  (** A vertex cover is a set of vertices such that every edge has at least one endpoint in the set *)
-  Definition isVertexCover (S : list V) : Prop :=
-    (forall v1 v2, E (v1, v2) -> v1 el S \/ v2 el S) /\ dupfree S.
-
-  (** A k-vertex cover is a vertex cover of size k *)
-  Definition isKVertexCover (k : nat) (S : list V) : Prop :=
-    |S| = k /\ isVertexCover S.
-
-  (** ** Definition of KVertexCover Problem *)
-
-  (** We define the KVertexCover problem as seeking a vertex cover of size k in a given graph *)
-  Definition KVertexCover (k : nat) : Prop :=
-      exists S, isKVertexCover k S.
-
-
+Section ComplementGraph.
 
 Definition V_complement := V.
 
-(* Step 2: Define the edge relation for the complement graph *)
 Definition E_complement (p : V_complement * V_complement) : Prop :=
   let (v1, v2) := p in
-  ~ E (v1, v2).
+  ~E (v1, v2).
 
-(* Step 3: Prove the symmetry of the complement edge relation *)
 Lemma E_complement_symm v1 v2 : E_complement (v1, v2) <-> E_complement (v2, v1).
 Proof.
   unfold E_complement.
@@ -101,32 +25,23 @@ Proof.
   - intro HE. apply HnE. apply E_symm. exact HE.
 Qed.
 
-(* Step 4: Prove the decidability of the complement edge relation *)
-Lemma E_complement_dec (v1 v2 : V_complement) : {E_complement (v1, v2)} + {~ E_complement (v1, v2)}.
+Lemma E_complement_dec (v1 v2 : V_complement) : {E_complement (v1, v2)} + {~E_complement (v1, v2)}.
 Proof.
   unfold E_complement.
   destruct (E_dec v1 v2) as [HE | HnE].
   - right. intro Hcomp. apply Hcomp. exact HE.
   - left. exact HnE.
 Defined.
-  
+
 Definition complementGraph :=
-  Build_UGraph
-    E_complement_dec
-    E_complement_symm.
-  (** Reduction function from Clique to Vertex Cover *)
+  Build_UGraph E_complement_dec E_complement_symm.
 
-End ss.
+End ComplementGraph.
 
-(* Definition Clique_to_VertexCover (g : UGraph) (k : nat) : UGraph * nat :=
-    (complementGraph g, length (elem (V g)) - k). *)
-  
-  (* Section: List stuff *)
-  Definition eq_dec_vertex {A : eqType} (x y : A) : bool :=
-    if eqType_dec x y then true else false.
-  
+(* List-related definitions *)
+Definition eq_dec_vertex {A : eqType} (x y : A) : bool :=
+  if eqType_dec x y then true else false.
 
-(* Check if an element is in a list using a provided equality decision function *)
 Fixpoint in_list {A : eqType} (x : A) (l : list A) : bool :=
   match l with
   | [] => false
@@ -139,59 +54,15 @@ Fixpoint list_diff {A : eqType} (l1 l2 : list A) : list A :=
   | x :: xs => if in_list x l2 then list_diff xs l2 else x :: list_diff xs l2
   end.
 
-  (* Fixpoint list_diff_length {A : eqType} (l1 l2 : list A) : nat :=
+Fixpoint count_in_list {A : eqType} (l1 l2 : list A) : nat :=
   match l1 with
   | [] => 0
-  | x :: xs => if in_list x l2 then list_diff_length xs l2 else 1 + list_diff_length xs l2
-  end. *)
-
-  Fixpoint count_in_list {A : eqType} (l1 l2 : list A) : nat :=
-    match l1 with
-    | [] => 0
-    | x :: xs => if in_list x l2 then S (count_in_list xs l2) else count_in_list xs l2
-    end.
-
-  Lemma list_diff_length {A : eqType} (l1 l2 : list A) :
-    length (list_diff l1 l2) = length l1 - count_in_list l1 l2.
-  Proof.
-    induction l1 as [| x xs IH].
-    - (* Base case: l1 = [] *)
-      simpl. reflexivity.
-    - (* Inductive step: l1 = x :: xs *)
-      simpl.
-      destruct (in_list x l2) eqn:H_in.
-      + (* Case: x is in l2 *)
-        rewrite IH.
-        simpl. reflexivity.
-     + (* Case: x is not in l2 *)
-       admit.
-
-
-  Admitted.
-
-  
-Lemma in_list_spec {A : eqType} (x : A) (l : list A) :
-  reflect (In x l) (in_list x l).
-Proof.
-Admitted.
-
-
-Lemma count_in_list_one {A : eqType} (x : A) (l : list A) :
-In x l ->
-count_in_list [x] l = 1.
-Proof.
-admit.
-Admitted.   
-
-
-Lemma dupfree_list_diff {A : eqType} (l1 l2 : list A) :
-  dupfree l1 -> dupfree (list_diff l1 l2).
-Proof.
-Admitted.
-
+  | x :: xs => if in_list x l2 then S (count_in_list xs l2) else count_in_list xs l2
+  end.
 
 (* Assume the function dupfree_elem that says all elements in a finite type list are distinct *)
 Axiom dupfree_elem : forall (A : eqType) (l : list A), dupfree l.
+
 Lemma count_in_list_empty_r {A : eqType} (l1 : list A) :
   count_in_list l1 [] = 0.
 Proof.
@@ -200,15 +71,14 @@ Proof.
   - simpl. rewrite IHl1. reflexivity.
 Qed.
 
-
 Lemma clique_is_subset_of_vertex_set (g0 : UGraph) (k : nat) (L : list (V g0)) :
   isKClique k L -> forall x, In x L -> In x (elem (V g0)).
 Proof.
   intros Hclique x Hx.
-  (* Since L is a list of vertices from g0, x must be in the vertex set V g0 *)
+  (* L is a list of vertices from g0, so x must be in the vertex set V g0 *)
   unfold isKClique in Hclique.
   destruct Hclique as [Hlen Hcl].
-  (* Apply elem_spec to assert that every vertex in L is in V g0 *)
+  (* Assert that every vertex in L is in V g0 *)
   apply elem_spec.
 Qed.
 
@@ -222,19 +92,6 @@ Proof.
   split; assumption.
 Qed.
 
-Lemma list_diff_in_iff {A : eqType} (x : A) (l1 l2 : list A) :
-  x el list_diff l1 l2 <-> x el l1 /\ ~ x el l2.
-Proof.
-  induction l1 as [| y ys IH]; simpl.
-  - (* Base case: l1 is empty *)
-    split.
-    + intros H. inversion H.
-    + intros [H _]. inversion H.
-  - (* Inductive step: l1 is non-empty *)
-    admit.
-Admitted.
-
-
 Lemma isKClique_cons_inv : 
   forall (g0 : UGraph) (x : V g0) (xs : list (V g0)) k,
     isKClique (S k) (x :: xs) ->
@@ -245,7 +102,7 @@ Proof.
   simpl in Hlen.
   destruct Hcl as [Hrel Hdup].
   split; [split | ]; auto.
-  - (* Proof that xs is a k-clique *)
+  - (* xs is a k-clique *)
     split.
       + intros v1 v2 H1 H2 Hneq.
         apply Hrel; auto.
@@ -254,21 +111,11 @@ Proof.
   - split.
     + apply dupfree_cons_inv with (x0 := x). apply Hdup.
     + intros v' Hvin.
-    apply Hrel with (v1 := x) (v2 := v'); auto. 
-     * intro H_eq.
-     subst.
-     apply dupfree_cons_inv in Hdup as [Hdup' Hnotin].
-     contradiction.
+      apply Hrel with (v1 := x) (v2 := v'); auto.
+      * intro H_eq. subst.
+        apply dupfree_cons_inv in Hdup as [Hdup' Hnotin].
+        contradiction.
 Qed.
-
-
-Lemma count_in_list_cons_increase {A : eqType} (x : A) (xs l2 : list A) (k : nat) :
-  count_in_list l2 xs = k ->
-  dupfree (x :: xs) ->
-  In x l2 ->
-  count_in_list l2 (x :: xs) = S k.
-Proof.
-Admitted.
 
 Lemma count_in_list_equals_length_if_clique (g0 : UGraph) (L : list (V g0)) :
   isKClique (length L) L -> count_in_list (elem (V g0)) L = length L.
@@ -279,101 +126,34 @@ Proof.
     simpl. rewrite count_in_list_empty_r. reflexivity.
   - (* Inductive step: L is non-empty *)
     simpl.
-
-
     destruct (isKClique_cons_inv Hclique) as [Hxs_clique [Hnotin_xs Hforall_edges]].
-
     assert (Hx_in_Vg0 : x el elem (V g0)).
     {
       apply clique_is_subset_of_vertex_set with (k := S (length xs)) (L := x :: xs); auto.
     }
-
     destruct Hclique as [Hlen [Hcl Hdup]].
-    assert (Hx_notin_xs : ~ x el xs).
+    assert (Hx_notin_xs : ~x el xs).
     {
       apply dupfree_cons_inv in Hdup. destruct Hdup as [Hdup' Hnotin]. assumption.
     }
-
     specialize (IH Hxs_clique).
-
- (* Now the goal is: count_in_list (elem (V g0)) (x :: xs) = S (length xs) *)
-      apply count_in_list_cons_increase with (l2 := (elem (V g0))); auto.
-    
+    (* Goal: count_in_list (elem (V g0)) (x :: xs) = S (length xs) *)
+    apply count_in_list_cons_increase with (l2 := (elem (V g0))); auto.
 Qed.
 
 Lemma vertex_cover_is_subset_of_vertex_set (g0 : UGraph) (k : nat) (S0 : list (V g0)) :
   isKVertexCover k S0 -> forall x, In x S0 -> In x (elem (V g0)).
 Proof.
   intros Hvertex_cover x Hx.
-  (* Since S is a list of vertices forming a vertex cover in g0, x must be in the vertex set V g0 *)
+  (* S is a list of vertices forming a vertex cover in g0, so x must be in the vertex set V g0 *)
   unfold isKVertexCover in Hvertex_cover.
   destruct Hvertex_cover as [Hlen Hvc].
-  (* Apply elem_spec to assert that every vertex in S is in V g0 *)
+  (* Assert that every vertex in S is in V g0 *)
   apply elem_spec.
 Qed.
 
+Section CliqueVertexCoverReduction.
 
-Lemma count_in_list_equals_length_if_vertex_cover (g0 : UGraph) (S : list (V g0)) :
-  isKVertexCover (length S) S -> count_in_list (elem (V g0)) S = length S.
-Proof.
-intros Hvertex_cover.
-(* Extract the properties from the isKVertexCover assumption *)
-destruct Hvertex_cover as [Hlen [Hvc Hdup]].
-
-(* Use a direct argument based on the fact that S is a subset of V g0 *)
-assert (Hsubset: forall x, In x S -> In x (elem (V g0))).
-{
-  intros x HxS.
-  apply vertex_cover_is_subset_of_vertex_set with (k := length S) (S0 := S).
-}
-
-(* Now prove that count_in_list matches the length of S *)
-induction S as [| x xs IH].
-- (* Base case: S is empty *)
-  simpl. rewrite count_in_list_empty_r. reflexivity.
-- (* Inductive step: S is non-empty *)
-  simpl.
-  assert (Hx_in_Vg0: x el elem (V g0)) by (apply Hsubset; left; reflexivity).
-  assert (Hx_notin_xs: ~ x el xs).
-  {
-    apply dupfree_cons_inv in Hdup. destruct Hdup as [Hdup' Hnotin]. assumption.
-  }
-  assert (Hlen_xs: |xs| = |xs|) by reflexivity.
-  assert (Hxs_cover: isKVertexCover (length xs) xs).
-    {
-      split.
-      - lia. (* We know that length xs = length S - 1 *)
-      - split.
-        + (* Vertex cover property holds for xs *)
-          intros v1 v2 HE.
-          specialize (Hvc v1 v2 HE).
-          destruct Hvc as [Hvc1 | Hvc2].
-          * (* Case when v1 = x *)
-            destruct (eqType_dec v1 x) as [Heq1 | Hneq1].
-            -- subst v1. right. admit.
-            -- destruct (eqType_dec v2 x) as [Heq2 | Hneq2].
-               ++ subst v2. right. admit.
-               ++ (* Both v1 and v2 are in xs *)
-                  left. admit.
-          * (* Case when v2 = x *)
-            destruct (eqType_dec v2 x) as [Heq2 | Hneq2].
-            -- subst v2. left. admit.
-            -- destruct (eqType_dec v1 x) as [Heq1 | Hneq1].
-               ++ subst v1. left. admit.
-               ++ (* Both v1 and v2 are in xs *)
-                  right. admit.
-        + (* xs is dupfree *)
-          apply dupfree_cons_inv in Hdup.
-          destruct Hdup as [Hdupf Hx_not_xs].
-          exact Hdupf.
-    }
-    destruct Hxs_cover as [H1 H2].
-    specialize (IH Hlen_xs).
-    admit.
-Admitted.
-
-
-Section dd.
 (* Theorem: Reduction from Clique to Vertex Cover is correct *)
 Theorem Clique_reduces_to_VertexCover :
  forall (g0: UGraph) (k : nat),
@@ -391,6 +171,10 @@ Proof.
       assert (Hcount: count_in_list (elem (V g0)) L = length L).
       {
         rewrite count_in_list_equals_length_if_clique. 
+        reflexivity.
+        split.
+        - reflexivity.
+        - apply Hcl.
       }
       remember (count_in_list (elem (V g0)) L) as cnt.
       rewrite Hcount in Heqcnt.
@@ -398,92 +182,106 @@ Proof.
       rewrite Heqcnt.
       reflexivity.
     + (* Show it's a vertex cover *)
-    unfold isVertexCover. split.
-    * intros v1 v2 HE_compl.
-      (* Assume (v1, v2) is an edge in the complement graph *)
-      unfold E_complement in HE_compl.
-      destruct Hclique as [_ Hcl].
-      destruct Hcl as [Hedge _].
-      destruct (in_dec (fun x y => eqType_dec x y) v1 L) as [Hvin1 | Hnin1].
-      -- destruct (in_dec (fun x y => eqType_dec x y) v2 L) as [Hvin2 | Hnin2].
-         ++ (* Case: Both v1 and v2 are in L, which is a contradiction *)
-            exfalso.
-            assert (Hneq: v1 <> v2). {
-              intro H_eq.
-              subst v2.
+      unfold isVertexCover. split.
+      * intros v1 v2 HE_compl.
+        (* Assume (v1, v2) is an edge in the complement graph *)
+        unfold E_complement in HE_compl.
+        destruct Hclique as [Hcl1 Hcl].
+        destruct Hcl as [Hedge _].
+        destruct (in_dec (fun x y => eqType_dec x y) v1 L) as [Hvin1 | Hnin1].
+        -- destruct (in_dec (fun x y => eqType_dec x y) v2 L) as [Hvin2 | Hnin2].
+           ++ (* Case: Both v1 and v2 are in L, which is a contradiction *)
+              exfalso.
+              assert (Hneq: v1 <> v2). {
+                apply distinct_vertices_in_clique with (k := k) (L := L); auto.
+                assert (Hclique_k_L: isKClique k L).
+                {
+                  split.
+                  - exact Hcl1. (* Length condition is already satisfied *)
+                  - split.
+                    + exact Hedge. (* The edge condition is already given by Hedge *)
+                    + apply dupfree_elem with (l := L).
+                }
+                exact Hclique_k_L.
+              }
+              specialize (Hedge v1 v2 Hvin1 Hvin2 Hneq).
               contradiction HE_compl.
-            }
-            specialize (Hedge v1 v2 Hvin1 Hvin2 Hneq).
-            contradiction HE_compl.
-
-         ++ (* Case: v1 in L, v2 not in L *)
-            right. apply list_diff_in_iff; auto.
-      -- (* Case: v1 not in L *)
-         left. apply list_diff_in_iff; auto.
-    * (* Duplication-free check *)
-      apply dupfree_list_diff. apply dupfree_elem.
+           ++ (* Case: v1 in L, v2 not in L *)
+              right. apply list_diff_in_iff; auto.
+        -- (* Case: v1 not in L *)
+           left. apply list_diff_in_iff; auto.
+      * (* Duplication-free check *)
+        apply dupfree_list_diff. apply dupfree_elem.
   - (* Vertex Cover to Clique *)
     intros [S Hcover].
     exists (list_diff (elem (V g0)) S).
     unfold isKClique. split.
     + (* Show that the size of the resulting set is k *)
-    rewrite list_diff_length.  
-    assert (Hdiff_size: length ( elem (V g0) ) - length (S) = k).
-    {
-      simpl.
-    }  
-    assert (Hsimpl: (| elem (V g0) |) - ((| elem (V g0) |) - (length S)) = (length S)).
+      rewrite list_diff_length.  
+      assert (Hk_le: length S <= length (elem (V g0))).
+      {
+        destruct Hcover as [Hc1 Hc2].
+        (* |S| = |elem (V g0)| - k, so |S| <= |elem (V g0)| implies k <= |elem (V g0)| *)
+        apply subset_cardinality_leq with (g0 := complementGraph g0) (S0 := S).
+        apply vertex_cover_is_subset_of_vertex_set with (k := length S).
+        split.
+        - reflexivity.
+        - apply Hc2.
+      }
+      assert (Hdiff_size: length (elem (V g0)) - length S = k).
+      {
+        destruct Hcover as [Hc1 Hc2].
+        rewrite sub_equation with (a := length S) (b := length (elem (V g0))) (c := k).
+        reflexivity.
+        exact Hc1.
+      }
+      assert (Hsimpl: (| elem (V g0) |) - ((| elem (V g0) |) - (length S)) = (length S)).
       {
         replace (| elem (V g0) | - (| elem (V g0) | - (length S))) with (length S).
-  reflexivity.
+        - reflexivity.
+        - lia.
       }
-    assert (Hcover_modified: isKVertexCover (| S |) S).
-    {
-      rewrite <- Hdiff_size in Hcover.
-
-      
-      rewrite Hsimpl in Hcover.
-      exact Hcover.
-    }
-
-    assert (Hcount: count_in_list (elem (V g0)) S = |S|).
-    { 
-    apply count_in_list_equals_length_if_vertex_cover with (g0 := complementGraph g0).
-
-    (* Satisfy the hypothesis by providing Hcover *)
-    exact Hcover_modified.
-    }
-     assert (Hequal: (| elem (V g0) |) - count_in_list (elem (V g0)) S = k ).
-     {
+      assert (Hcover_modified: isKVertexCover (| S |) S).
+      {
+        rewrite <- Hdiff_size in Hcover.
+        rewrite Hsimpl in Hcover.
+        exact Hcover.
+      }
+      assert (Hcount: count_in_list (elem (V g0)) S = |S|).
+      { 
+        apply count_in_list_equals_length_if_vertex_cover with (g0 := complementGraph g0).
+        (* Satisfy the hypothesis by providing Hcover *)
+        exact Hcover_modified.
+      }
+      assert (Hequal: (| elem (V g0) |) - count_in_list (elem (V g0)) S = k).
+      {
         rewrite Hcount.
         exact Hdiff_size.
-     }
-     exact Hequal.
-
+      }
+      exact Hequal.
     + split.
       * intros v1 v2 H1 H2 Hneq.
-      assert (Hnv1 : ~ v1 el S).
-      {
-        apply list_diff_in_iff in H1. tauto.
-      }
-      assert (Hnv2 : ~ v2 el S).
-      {
-        apply list_diff_in_iff in H2. tauto.
-      }
-      assert (Hcomp_edge: ~ E_complement (v1, v2)).
-      {
+        assert (Hnv1: ~v1 el S).
+        {
+          apply list_diff_in_iff in H1. tauto.
+        }
+        assert (Hnv2: ~v2 el S).
+        {
+          apply list_diff_in_iff in H2. tauto.
+        }
+        assert (Hcomp_edge: ~E_complement (v1, v2)).
+        {
           unfold isVertexCover in Hcover. destruct Hcover as [_ Hvc_cover].
           unfold E_complement.
           simpl.
-          
           intro HnE.
           apply Hvc_cover in HnE.
           destruct HnE as [Hin1 | Hin2]; contradiction.
-      }
-      unfold E_complement in Hcomp_edge.
-      apply NNPP in Hcomp_edge.
-
-      exact Hcomp_edge.
-      * apply dupfree_list_diff. apply dupfree_elem. 
+        }
+        unfold E_complement in Hcomp_edge.
+        apply NNPP in Hcomp_edge.
+        exact Hcomp_edge.
+      * apply dupfree_list_diff. apply dupfree_elem.
 Qed.
-End dd.
+
+End CliqueVertexCoverReduction.
