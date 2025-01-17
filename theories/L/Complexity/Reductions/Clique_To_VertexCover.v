@@ -335,7 +335,7 @@ Section PolynomialReductionProof.
   Definition final_reduction (g : UGraph) (k : nat) : UGraph * nat :=
     (complementGraph g, size_VGraph g - k).
 
-  (** Theorem: Clique reduces to KVertexCover in polynomial time **)
+  (** Theorem: Clique reduces to KVertexCover in polynomial time, not yet finished **)
   Theorem Clique_reduces_to_KVertexCover_poly :
     forall g k, Clique (g, k) <-> KVertexCover (final_reduction g k) /\ reduction_time_poly g.
   Proof.
